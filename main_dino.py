@@ -468,5 +468,9 @@ class DataAugmentationDINO(object):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DINO', parents=[get_args_parser()])
     args = parser.parse_args()
+    
+    import sccl
+    sccl.init('ndv4', 2, (sccl.Collective.alltoall, '1GB'))
+    
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     train_dino(args)
