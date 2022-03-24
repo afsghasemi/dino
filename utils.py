@@ -485,7 +485,9 @@ def init_distributed_mode(args):
     # launched with submitit on a slurm cluster
     elif 'SLURM_PROCID' in os.environ:
         args.rank = int(os.environ['SLURM_PROCID'])
-	@@ -491,17 +495,15 @@ def init_distributed_mode(args):
+        args.gpu = args.rank % torch.cuda.device_count()
+    # launched naively with `python main_dino.py`
+    # we manually add MASTER_ADDR and MASTER_PORT to env variables
     elif torch.cuda.is_available():
         print('Will run the code on one GPU.')
         args.rank, args.gpu, args.world_size = 0, 0, 1
