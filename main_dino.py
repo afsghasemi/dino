@@ -474,8 +474,16 @@ if __name__ == '__main__':
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
 
     if args.optimizer == 'fused_adam':
-        print("start config ort=============================================================")
+        print("start install ort nightly=============================================================")
         import subprocess
+        stdout = subprocess.run([sys.executable, '-m', 'pip', 'uninstall', 'onnxruntime-training', '-y'], capture_output=True, text=True).stdout
+        print(stdout)
+        stdout = subprocess.run([sys.executable, '-m', 'pip', 'install', '--pre', 'onnxruntime-training', '-f', 'https://download.onnxruntime.ai/onnxruntime_nightly_cu111.html'],
+        check=True, capture_output=True, text=True).stdout
+        print(stdout)
+        print("finish install ort nightly============================================================")
+
+        print("start config ort=============================================================")
         stdout = subprocess.run([sys.executable, '-m', 'onnxruntime.training.ortmodule.torch_cpp_extensions.install'], check=True, capture_output=True, text=True).stdout
         print(stdout)
         print("finish config ort============================================================")
