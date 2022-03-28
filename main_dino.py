@@ -43,8 +43,8 @@ def get_args_parser():
 
     # Model parameters
     parser.add_argument('--arch', default='vit_small', type=str,
-        choices=['vit_tiny', 'vit_small', 'vit_base', 'xcit', 'deit_tiny', 'deit_small'] ,#\
-            #    + torchvision_archs + torch.hub.list("facebookresearch/xcit:main"),
+        choices=['vit_tiny', 'vit_small', 'vit_base', 'xcit', 'deit_tiny', 'deit_small'] \
+                + torchvision_archs + torch.hub.list("facebookresearch/xcit:main"),
         help="""Name of architecture to train. For quick experiments with ViTs,
         we recommend using vit_tiny or vit_small.""")
     parser.add_argument('--patch_size', default=16, type=int, help="""Size in pixels
@@ -101,7 +101,7 @@ def get_args_parser():
     parser.add_argument('--min_lr', type=float, default=1e-6, help="""Target LR at the
         end of optimization. We use a cosine LR schedule with linear warmup.""")
     parser.add_argument('--optimizer', default='adamw', type=str,
-        choices=['adamw', 'sgd', 'lars'], help="""Type of optimizer. We recommend using adamw with ViTs.""")
+        choices=['adamw', 'sgd', 'lars', 'fused_adam'], help="""Type of optimizer. We recommend using adamw or fused_adam with ViTs.""")
     parser.add_argument('--drop_path_rate', type=float, default=0.1, help="stochastic depth rate")
 
     # Multi-crop parameters
@@ -153,8 +153,7 @@ def train_dino(args):
         drop_last=True,
     )
     print(f"Data loaded: there are {len(dataset)} images.")
-    os_values = os.uname()
-    print(f"{os_values}")
+
     # ============ building student and teacher networks ... ============
     # we changed the name DeiT-S for ViT-S to avoid confusions
     args.arch = args.arch.replace("deit", "vit")
@@ -167,11 +166,11 @@ def train_dino(args):
         teacher = vits.__dict__[args.arch](patch_size=args.patch_size)
         embed_dim = student.embed_dim
     # if the network is a XCiT
-    #elif args.arch in torch.hub.list("facebookresearch/xcit:main"):
-    #    student = torch.hub.load('facebookresearch/xcit:main', args.arch,
-    #                             pretrained=False, drop_path_rate=args.drop_path_rate)
-    #    teacher = torch.hub.load('facebookresearch/xcit:main', args.arch, pretrained=False)
-    #    embed_dim = student.embed_dim
+    elif args.arch in torch.hub.list("facebookresearch/xcit:main"):
+        student = torch.hub.load('facebookresearch/xcit:main', args.arch,
+                                 pretrained=False, drop_path_rate=args.drop_path_rate)
+        teacher = torch.hub.load('facebookresearch/xcit:main', args.arch, pretrained=False)
+        embed_dim = student.embed_dim
     # otherwise, we check if the architecture is in torchvision models
     elif args.arch in torchvision_models.__dict__.keys():
         student = torchvision_models.__dict__[args.arch]()
@@ -226,6 +225,9 @@ def train_dino(args):
     params_groups = utils.get_params_groups(student)
     if args.optimizer == "adamw":
         optimizer = torch.optim.AdamW(params_groups)  # to use with ViTs
+    elif args.optimizer == 'fused_adam':
+        from onnxruntime.training.optim.fused_adam import FusedAdam
+        optimizer = FusedAdam(params_groups)
     elif args.optimizer == "sgd":
         optimizer = torch.optim.SGD(params_groups, lr=0, momentum=0.9)  # lr is set by scheduler
     elif args.optimizer == "lars":
@@ -469,4 +471,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('DINO', parents=[get_args_parser()])
     args = parser.parse_args()
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+
+    if args.optimizer == 'fused_adam':
+        print("start config ort=============================================================")
+        import subprocess
+        stdout = subprocess.run([sys.executable, '-m', 'onnxruntime.training.ortmodule.torch_cpp_extensions.install'], check=True, capture_output=True, text=True).stdout
+        print(stdout)
+        print("finish config ort============================================================")
     train_dino(args)
