@@ -101,7 +101,7 @@ def get_args_parser():
     parser.add_argument('--min_lr', type=float, default=1e-6, help="""Target LR at the
         end of optimization. We use a cosine LR schedule with linear warmup.""")
     parser.add_argument('--optimizer', default='adamw', type=str,
-        choices=['adamw', 'sgd', 'lars'], help="""Type of optimizer. We recommend using adamw with ViTs.""")
+        choices=['adamw', 'sgd', 'lars', 'fused_adam'], help="""Type of optimizer. We recommend using adamw or fused_adam with ViTs.""")
     parser.add_argument('--drop_path_rate', type=float, default=0.1, help="stochastic depth rate")
 
     # Multi-crop parameters
@@ -226,6 +226,9 @@ def train_dino(args):
     params_groups = utils.get_params_groups(student)
     if args.optimizer == "adamw":
         optimizer = torch.optim.AdamW(params_groups)  # to use with ViTs
+    elif args.optimizer == 'fused_adam':
+        from onnxruntime.training.optim.fused_adam import FusedAdam
+        optimizer = FusedAdam(params_groups)
     elif args.optimizer == "sgd":
         optimizer = torch.optim.SGD(params_groups, lr=0, momentum=0.9)  # lr is set by scheduler
     elif args.optimizer == "lars":
